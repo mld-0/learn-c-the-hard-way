@@ -3,6 +3,8 @@
 *
 !/**/
 !*.*
+#	include 'makefile'
+!makefile
 
 #	macOS metadata
 .DS_Store
