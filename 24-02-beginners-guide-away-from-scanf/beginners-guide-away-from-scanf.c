@@ -9,14 +9,18 @@
 
 //	LINK: http://sekrit.de/webdocs/c/beginners-guide-away-from-scanf.html
 
+//	int fscanf(FILE* stream, const char* format, ...)
+//	char* fgets(char* str, int num, FILE* stream)
+
 //	Summary: Use 'fgets()', not 'scanf()', to read a line of input.
+//		scanf does not know the buffer size unless it is given in the format specifier.
 //		fgets reads until a newline, scanf reads until whitespace.
 //		scanf requires us to know the exact format of the input.
 //		When scanf fails to convert fields, it leaves all input data on the stream.
 //		Using both fgets and sscanf allows easier error handling than just scanf.
+//		Alternatively use strtoll/strtod/strtof to convert numbers.
 //		<(scanf leaves behind a newline on the input stream)>.
 //		Use 'fread' to read binary data.
-
 //	Buffer size:
 //		Pass 'fgets' BUFFER_LEN=n, it will read n-1 bytes
 //		For 'scanf' use BUFFER_LEN-1 as field width 
@@ -117,8 +121,8 @@ void Reading_a_Number_with_fgets() {
 		if (errno == ERANGE) {
 			printf("Number is too small/large\n");
 		} else if (endptr == buffer) {
-			printf("No character read\n");
-		} else if (*endptr && *endptr != '\n') {
+			printf("No numerical character read\n");
+		} else if (*endptr && *endptr != '\n') {			//	we are relying on string finishing with a newline
 			printf("Failed to convert whole input\n");
 		} else {
 			done = 1;
