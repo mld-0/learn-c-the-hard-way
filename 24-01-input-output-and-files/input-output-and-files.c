@@ -21,9 +21,8 @@
 //	Ongoing: 2022-09-01T23:10:58AEST Use of 'MAX_DATA-1' in 'fgets' is incorrect(?) (it is perfectly acceptable to provide the size of the array, since fgets copies until 'num'-1 characters have been read) (and book usage of '-1' is <unneccessary/wrong?>) [...] (is the book being wrong here on purpouse for us to spot?)
 //	Ongoing: 2022-09-01T23:45:07AEST sprintf/snprintf are provided as macros?
 //	Ongoing: 2022-09-02T00:29:07AEST (how to) pass data to program from run script (lines via stdin?)
+//	Ongoing: 2022-09-02T23:14:48AEST fgets, it is correct to supply 'MAX_DATA' as argument (no need to use 'MAX_DATA-1')?
 //	}}}
-//	Continue: 2022-09-02T00:38:51AEST beginners guide away from scanf
-//	Continue: 2022-09-02T00:39:09AEST no-fscanf version
 //	Continue: 2022-09-02T00:47:04AEST provide input from script [...] (using file as input with same code?)
 //	Continue: 2022-09-02T00:47:17AEST entering input on newline vs same line as input prompt
 
@@ -175,12 +174,19 @@
 //	int fscanf(FILE* stream, const char* format, ...)
 //	char* fgets(char* str, int num, FILE* stream)
 
-//	fscanf() is bad (for inputing strings) <(and we should just use fgets() instead?)>
-//	fscanf vs fgets:
-//			<(fscanf does not allow us to specify buffer size?)>
-//			fgets reads up to a newline (including newline)
-//			fscanf reads up to whitespace (excluding whitespace)
-//	<(fscanf is (only) safe if we specify string buffer maximum size in specifier eg: '%9s')>
+//	Taken from 24-02-beginners-guide-away-from-scanf:
+//	Summary: Use 'fgets()', not 'scanf()', to read a line of input.
+//		scanf does not know the buffer size unless it is given in the format specifier.
+//		fgets reads until a newline, scanf reads until whitespace.
+//		scanf requires us to know the exact format of the input.
+//		When scanf fails to convert fields, it leaves all input data on the stream.
+//		Using both fgets and sscanf allows easier error handling than just scanf.
+//		Alternatively use strtoll/strtod/strtof to convert numbers.
+//		<(scanf leaves behind a newline on the input stream)>.
+//		Use 'fread' to read binary data.
+//	Buffer size:
+//		Pass 'fgets' BUFFER_LEN=n, it will read n-1 bytes
+//		For 'scanf' use BUFFER_LEN-1 as field width 
 
 
 void rstrip(char* s) {
@@ -189,7 +195,7 @@ void rstrip(char* s) {
 	*s = '\0';
 }
 
-#define MAX_DATA 	100
+#define MAX_DATA 	1024
 
 typedef enum EyeColor {
 	BLUE_EYES, GREEN_EYES, BROWN_EYES, BLACK_EYES, OTHER_EYES
@@ -205,8 +211,17 @@ typedef struct Person {
 	float income;
 } Person;
 
+void print_eyecolor_choices() {
+	printf("Eye color choices:\n");
+	for (int i = 0; i <= OTHER_EYES; ++i) {
+		printf("%d=(%s), ", i, EYE_COLOR_NAMES[i]);
+	}
+	printf("\n");
+}
+
 int read_in_person(Person* p) {
 	char *in = NULL;
+	int rc;
 
 	printf("Enter first name:\n");
 	//printf("Enter first name: ");
@@ -222,15 +237,10 @@ int read_in_person(Person* p) {
 
 	printf("Enter age:\n");
 	//printf("Enter age: ");
-	int rc = fscanf(stdin, "%d", &p->age);
+	rc = fscanf(stdin, "%d", &p->age);
 	check( rc > 0, "Enter a number for age");
 
-	printf("Eye color choices:\n");
-	for (int i = 0; i <= OTHER_EYES; ++i) {
-		printf("%d=(%s), ", i, EYE_COLOR_NAMES[i]);
-	}
-	printf("\n");
-
+	print_eyecolor_choices();
 	//printf("Enter eye color:\n");
 	printf("Enter eye color: ");
 	rc = fscanf(stdin, "%d", &p->eyes);
@@ -247,40 +257,94 @@ error:
 	return -1;
 }
 
+
 int read_in_person_no_fscanf(Person* p) {
 	char *in = NULL;
+	char buffer[MAX_DATA];
+	char *rc;
 
 	printf("Enter first name:\n");
 	in = fgets(p->first_name, MAX_DATA-1, stdin);
 	check( in != NULL, "Failed to read first name");
+	rstrip(p->first_name);
 
 	printf("Enter last name:\n");
 	in = fgets(p->last_name, MAX_DATA-1, stdin);
 	check( in != NULL, "Failed to read last name");
+	rstrip(p->first_name);
 
 	printf("Enter age:\n");
-	int rc = fscanf(stdin, "%d", &p->age);
+	rc = fgets(buffer, MAX_DATA, stdin);
+	check( rc, "Failed to read line (age)");
+	p->age = (int) strtol(buffer, &rc, 10);
+	check( errno != ERANGE, "Number too small/large (age)");
+	check( rc != buffer, "No numerical characters read (age)");
+	check( *rc && *rc == '\n', "Failed to convert whole input (age)");
+
+	print_eyecolor_choices();
+	printf("Enter eye color:\n");
+	rc = fgets(buffer, MAX_DATA, stdin);
+	check( rc, "Failed to read line (eye color)");
+	p->eyes = (int) strtol(buffer, &rc, 10);
+	check( errno != ERANGE, "Number too small/large (eye color)");
+	check( rc != buffer, "No numerical characters read (eye color)");
+	check( *rc && *rc == '\n', "Failed to convert whole input (eye color)");
+	check( p->eyes <= OTHER_EYES && p->eyes >= 0, "Eye value outside valid range");
+
+	printf("Hourly income:\n");
+	rc = fgets(buffer, MAX_DATA, stdin);
+	check( rc, "Failed to read line (income)");
+	p->income = strtof(buffer, &rc);
+	check( errno != ERANGE, "Number too small/large (income)");
+	check( rc != buffer, "No numerical characters read (income)");
+	check( *rc && *rc == '\n', "Failed to convert whole input (income)");
+
+	return 0;
+error:
+	return -1;
+}
+
+
+int read_in_person_use_sscanf(Person* p) {
+	char buffer[MAX_DATA];
+	char *in = NULL;
+	int rc;
+
+	printf("Enter first name:\n");
+	in = fgets(p->first_name, MAX_DATA-1, stdin);
+	check( in != NULL, "Failed to read first name");
+	rstrip(p->first_name);
+
+	printf("Enter last name:\n");
+	in = fgets(p->last_name, MAX_DATA-1, stdin);
+	check( in != NULL, "Failed to read last name");
+	rstrip(p->last_name);
+
+	printf("Enter age:\n");
+	in = fgets(buffer, MAX_DATA, stdin);
+	check( in != NULL, "Failed to read line (age)");
+	rc = sscanf(buffer, "%d", &p->age);
 	check( rc > 0, "Enter a number for age");
 
-	printf("Eye color choices:\n");
-	for (int i = 0; i <= OTHER_EYES; ++i) {
-		printf("%d=(%s), ", i, EYE_COLOR_NAMES[i]);
-	}
-	printf("\n");
-
-	printf("Enter eye color:\n");
-	//rc = fscanf(stdin, "%d", &p->eyes);
+	print_eyecolor_choices();
+	printf("Enter eye color: ");
+	in = fgets(buffer, MAX_DATA, stdin);
+	check( in != NULL, "Failed to read line (eye color)");
+	rc = sscanf(buffer, "%d", &p->eyes);
 	check( rc > 0, "Enter a number for eye color");
 	check( p->eyes <= OTHER_EYES && p->eyes >= 0, "Eye value outside valid range");
 
 	printf("Hourly income:\n");
-	//rc = fscanf(stdin, "%f", &p->income);
+	in = fgets(buffer, MAX_DATA, stdin);
+	check( in != NULL, "Failed to read line (income)");
+	rc = sscanf(buffer, "%f", &p->income);
 	check( rc > 0, "Enter a float for income");
 
 	return 0;
 error:
 	return -1;
 }
+
 
 void output_person(Person* p) {
 	printf("first_name=(%s)\n", p->first_name);
@@ -296,7 +360,9 @@ int main(int argc, char* argv[])
 	int rc;
 
 	Person you = {.age = 0};
-	rc = read_in_person(&you);
+	//rc = read_in_person(&you);
+	//rc = read_in_person_no_fscanf(&you);
+	rc = read_in_person_use_sscanf(&you);
 	if (rc < 0) return 1;
 	output_person(&you);
 
